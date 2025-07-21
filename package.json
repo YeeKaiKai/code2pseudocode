@@ -29,16 +29,6 @@
           "group": "1_modification"
         }
       ]
-    },
-    "configuration": {
-      "title": "Code2Pseudocode",
-      "properties": {
-        "code2pseudocode.claudeApiKey": {
-          "type": "string",
-          "description": "Claude API Key for code conversion",
-          "scope": "application"
-        }
-      }
     }
   },
   "scripts": {

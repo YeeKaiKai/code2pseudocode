@@ -3,12 +3,15 @@ import axios from 'axios';
 /**
  * 呼叫 Claude API，將程式碼轉換為 pseudocode
  * @param code - 原始程式碼
- * @param apiKey - Claude API Key
  * @returns pseudocode
  */
-export async function codeToPseudocode(code: string, apiKey: string): Promise<string> {
+export async function codeToPseudocode(code: string): Promise<string> {
+    const apiKey = process.env.CLAUDE_API_KEY;
+    console.log('在 claudeApi.ts 中檢查 API Key:', !!apiKey);
+    console.log('所有環境變數:', Object.keys(process.env).filter(key => key.includes('CLAUDE')));
+
     if (!apiKey) {
-        throw new Error('找不到 CLAUDE_API_KEY，請檢查設定');
+        throw new Error('找不到 CLAUDE_API_KEY，請檢查 .env 檔案。當前環境變數中沒有此 Key。');
     }
 
     // 使用新版 Messages API

@@ -2,9 +2,17 @@
 // Import the module and reference it with the alias vscode in your code below
 import * as vscode from 'vscode';
 import { codeToPseudocode } from './claudeApi';
+import * as dotenv from 'dotenv';
+import * as path from 'path';
 
 export function activate(context: vscode.ExtensionContext) {
+	// 載入 .env 文件 - 使用 extension 根目錄的路徑
+	const extensionPath = context.extensionPath;
+	dotenv.config({ path: path.join(extensionPath, '.env') });
+
 	console.log('Code2Pseudocode extension is now active!');
+	console.log('Extension path:', extensionPath);
+	console.log('CLAUDE_API_KEY exists:', !!process.env.CLAUDE_API_KEY);
 
 	// 註冊轉換命令
 	const disposable = vscode.commands.registerCommand('code2pseudocode.convertToPseudocode', async () => {
@@ -24,29 +32,11 @@ export function activate(context: vscode.ExtensionContext) {
 		}
 
 		// 獲取 Claude API Key
-		let apiKey = vscode.workspace.getConfiguration('code2pseudocode').get<string>('claudeApiKey');
+		const apiKey = process.env.CLAUDE_API_KEY;
 
 		if (!apiKey) {
-			apiKey = await vscode.window.showInputBox({
-				prompt: '請輸入 Claude API Key',
-				password: true,
-				placeHolder: 'sk-ant-...',
-				ignoreFocusOut: true
-			});
-
-			if (!apiKey) {
-				vscode.window.showErrorMessage('需要 Claude API Key 才能轉換程式碼');
-				return;
-			}
-
-			// 詢問是否要保存 API Key
-			const saveKey = await vscode.window.showQuickPick(['是', '否'], {
-				placeHolder: '是否要保存此 API Key 到設定中？'
-			});
-
-			if (saveKey === '是') {
-				await vscode.workspace.getConfiguration('code2pseudocode').update('claudeApiKey', apiKey, vscode.ConfigurationTarget.Global);
-			}
+			vscode.window.showErrorMessage('找不到 CLAUDE_API_KEY，請檢查 .env 檔案');
+			return;
 		}
 
 		// 顯示進度指示器
@@ -59,7 +49,7 @@ export function activate(context: vscode.ExtensionContext) {
 				progress.report({ increment: 30, message: "正在呼叫 Claude API..." });
 
 				// 呼叫 Claude API
-				const pseudocode = await codeToPseudocode(selectedText, apiKey!);
+				const pseudocode = await codeToPseudocode(selectedText);
 
 				progress.report({ increment: 70, message: "正在顯示結果..." });
 
