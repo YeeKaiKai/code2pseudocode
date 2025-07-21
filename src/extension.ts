@@ -54,7 +54,7 @@ export function activate(context: vscode.ExtensionContext) {
 				progress.report({ increment: 70, message: "正在顯示結果..." });
 
 				// 創建分割視窗顯示結果
-				await showPseudocodePanel(selectedText, pseudocode);
+				await showPseudocodePanel(pseudocode);
 
 			} catch (error) {
 				console.error('轉換失敗:', error);
@@ -67,9 +67,9 @@ export function activate(context: vscode.ExtensionContext) {
 }
 
 /**
- * 創建分割視窗顯示原始程式碼和 pseudocode
+ * 創建分割視窗顯示 pseudocode
  */
-async function showPseudocodePanel(originalCode: string, pseudocode: string) {
+async function showPseudocodePanel(pseudocode: string) {
 	// 創建 WebView 面板
 	const panel = vscode.window.createWebviewPanel(
 		'code2pseudocode',
@@ -82,13 +82,13 @@ async function showPseudocodePanel(originalCode: string, pseudocode: string) {
 	);
 
 	// 設置 WebView 內容
-	panel.webview.html = getWebviewContent(originalCode, pseudocode);
+	panel.webview.html = getWebviewContent(pseudocode);
 }
 
 /**
  * 生成 WebView 的 HTML 內容
  */
-function getWebviewContent(originalCode: string, pseudocode: string): string {
+function getWebviewContent(pseudocode: string): string {
 	return `
     <!DOCTYPE html>
     <html lang="zh-TW">
@@ -105,16 +105,11 @@ function getWebviewContent(originalCode: string, pseudocode: string): string {
                 color: var(--vscode-editor-foreground);
             }
             .container {
-                display: flex;
-                gap: 20px;
                 height: 100vh;
-            }
-            .panel {
-                flex: 1;
                 display: flex;
                 flex-direction: column;
             }
-            .panel h2 {
+            .container h2 {
                 margin: 0 0 15px 0;
                 color: var(--vscode-titleBar-activeForeground);
                 border-bottom: 2px solid var(--vscode-titleBar-border);
@@ -131,9 +126,6 @@ function getWebviewContent(originalCode: string, pseudocode: string): string {
                 font-size: 14px;
                 line-height: 1.5;
             }
-            .original-code {
-                background-color: var(--vscode-diffEditor-insertedTextBackground);
-            }
             .pseudocode {
                 background-color: var(--vscode-diffEditor-removedTextBackground);
             }
@@ -141,14 +133,8 @@ function getWebviewContent(originalCode: string, pseudocode: string): string {
     </head>
     <body>
         <div class="container">
-            <div class="panel">
-                <h2>📝 原始程式碼</h2>
-                <div class="code-block original-code">${escapeHtml(originalCode)}</div>
-            </div>
-            <div class="panel">
-                <h2>🔄 Pseudocode</h2>
-                <div class="code-block pseudocode">${escapeHtml(pseudocode)}</div>
-            </div>
+            <h2>🔄 Pseudocode</h2>
+            <div class="code-block pseudocode">${escapeHtml(pseudocode)}</div>
         </div>
     </body>
     </html>
