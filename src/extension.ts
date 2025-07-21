@@ -5,6 +5,9 @@ import { codeToPseudocode } from './claudeApi';
 import * as dotenv from 'dotenv';
 import * as path from 'path';
 
+// 全域變數來追踪面板狀態
+let pseudocodePanel: vscode.WebviewPanel | undefined;
+
 export function activate(context: vscode.ExtensionContext) {
 	// 載入 .env 文件 - 使用 extension 根目錄的路徑
 	const extensionPath = context.extensionPath;
@@ -16,62 +19,109 @@ export function activate(context: vscode.ExtensionContext) {
 
 	// 註冊轉換命令
 	const disposable = vscode.commands.registerCommand('code2pseudocode.convertToPseudocode', async () => {
-		// 獲取當前編輯器和選中的程式碼
-		const editor = vscode.window.activeTextEditor;
-		if (!editor) {
-			vscode.window.showErrorMessage('請先打開一個程式碼文件');
-			return;
-		}
-
-		const selection = editor.selection;
-		const selectedText = editor.document.getText(selection);
-
-		if (!selectedText.trim()) {
-			vscode.window.showErrorMessage('請先選中要轉換的程式碼');
-			return;
-		}
-
-		// 獲取 Claude API Key
-		const apiKey = process.env.CLAUDE_API_KEY;
-
-		if (!apiKey) {
-			vscode.window.showErrorMessage('找不到 CLAUDE_API_KEY，請檢查 .env 檔案');
-			return;
-		}
-
-		// 顯示進度指示器
-		await vscode.window.withProgress({
-			location: vscode.ProgressLocation.Notification,
-			title: "正在轉換程式碼為 pseudocode...",
-			cancellable: false
-		}, async (progress) => {
-			try {
-				progress.report({ increment: 30, message: "正在呼叫 Claude API..." });
-
-				// 呼叫 Claude API
-				const pseudocode = await codeToPseudocode(selectedText);
-
-				progress.report({ increment: 70, message: "正在顯示結果..." });
-
-				// 創建分割視窗顯示結果
-				await showPseudocodePanel(pseudocode);
-
-			} catch (error) {
-				console.error('轉換失敗:', error);
-				vscode.window.showErrorMessage(`轉換失敗: ${(error as Error).message}`);
-			}
-		});
+		await convertToPseudocode();
 	});
 
-	context.subscriptions.push(disposable);
+	// 註冊檔案儲存事件監聽器
+	const onSaveDisposable = vscode.workspace.onDidSaveTextDocument(async (document) => {
+		// 只有當面板已開啟時才自動轉換
+		if (!pseudocodePanel) {
+			return;
+		}
+
+		// 檢查是否為程式碼檔案（基於副檔名）
+		const codeExtensions = ['.js', '.ts', '.py', '.java', '.cpp', '.c', '.cs', '.php', '.rb', '.go', '.rust', '.swift'];
+		const fileExtension = document.fileName.toLowerCase();
+		const isCodeFile = codeExtensions.some(ext => fileExtension.endsWith(ext));
+
+		if (isCodeFile) {
+			// 等待一小段時間確保檔案已完全儲存
+			setTimeout(async () => {
+				await convertToPseudocode(true); // 傳入 true 表示是自動更新
+			}, 100);
+		}
+	});
+
+	context.subscriptions.push(disposable, onSaveDisposable);
+}
+
+/**
+ * 執行程式碼轉換為 pseudocode 的核心邏輯
+ */
+async function convertToPseudocode(isAutoUpdate: boolean = false) {
+	// 獲取當前編輯器和選中的程式碼
+	const editor = vscode.window.activeTextEditor;
+	if (!editor) {
+		if (!isAutoUpdate) {
+			vscode.window.showErrorMessage('請先打開一個程式碼文件');
+		}
+		return;
+	}
+
+	const selection = editor.selection;
+	let selectedText = editor.document.getText(selection);
+
+	// 如果沒有選中程式碼，則轉換整個檔案
+	if (!selectedText.trim()) {
+		selectedText = editor.document.getText();
+		if (!selectedText.trim()) {
+			if (!isAutoUpdate) {
+				vscode.window.showErrorMessage('檔案內容為空');
+			}
+			return;
+		}
+	}
+
+	// 獲取 Claude API Key
+	const apiKey = process.env.CLAUDE_API_KEY;
+
+	if (!apiKey) {
+		if (!isAutoUpdate) {
+			vscode.window.showErrorMessage('找不到 CLAUDE_API_KEY，請檢查 .env 檔案');
+		}
+		return;
+	}
+
+	// 顯示進度指示器
+	const progressLocation = vscode.ProgressLocation.Notification;
+
+	await vscode.window.withProgress({
+		location: progressLocation,
+		title: isAutoUpdate ? "更新 pseudocode..." : "正在轉換程式碼為 pseudocode...",
+		cancellable: false
+	}, async (progress) => {
+		try {
+			progress.report({ increment: 30, message: "正在呼叫 Claude API..." });
+
+			// 呼叫 Claude API
+			const pseudocode = await codeToPseudocode(selectedText);
+
+			progress.report({ increment: 70, message: "正在顯示結果..." });
+
+			// 創建分割視窗顯示結果
+			await showPseudocodePanel(pseudocode);
+
+		} catch (error) {
+			console.error('轉換失敗:', error);
+			if (!isAutoUpdate) {
+				vscode.window.showErrorMessage(`轉換失敗: ${(error as Error).message}`);
+			}
+		}
+	});
 }
 
 /**
  * 創建分割視窗顯示 pseudocode
  */
 async function showPseudocodePanel(pseudocode: string) {
-	// 創建 WebView 面板
-	const panel = vscode.window.createWebviewPanel(
+	// 如果面板已存在，只更新內容
+	if (pseudocodePanel) {
+		pseudocodePanel.webview.html = getWebviewContent(pseudocode);
+		return;
+	}
+
+	// 創建新的 WebView 面板
+	pseudocodePanel = vscode.window.createWebviewPanel(
 		'code2pseudocode',
 		'Code to Pseudocode',
 		vscode.ViewColumn.Beside, // 在側邊顯示
@@ -81,8 +131,13 @@ async function showPseudocodePanel(pseudocode: string) {
 		}
 	);
 
+	// 監聽面板關閉事件
+	pseudocodePanel.onDidDispose(() => {
+		pseudocodePanel = undefined;
+	});
+
 	// 設置 WebView 內容
-	panel.webview.html = getWebviewContent(pseudocode);
+	pseudocodePanel.webview.html = getWebviewContent(pseudocode);
 }
 
 /**
