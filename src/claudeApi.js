@@ -12,7 +12,7 @@ async function codeToPseudocode(code) {
 
     // 使用新版 Messages API
     const endpoint = 'https://api.anthropic.com/v1/messages';
-    const userMessage = `請將下列程式碼轉換成詳細的 pseudocode，不需要額外解釋，只需要輸出 pseudocode 即可：\n\n${code}`;
+    const userMessage = `Please convert the following code into detailed pseudocode. No additional explanations are needed; output only the pseudocode: \n\n${code}`;
 
     try {
         const response = await axios.post(
