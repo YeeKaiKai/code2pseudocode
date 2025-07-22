@@ -42,7 +42,31 @@ export function activate(context: vscode.ExtensionContext) {
 		}
 	});
 
-	context.subscriptions.push(disposable, onSaveDisposable);
+	// 註冊 Hover Provider
+	const hoverProvider = vscode.languages.registerHoverProvider(
+		['javascript', 'typescript', 'python', 'java', 'cpp', 'c', 'csharp', 'php', 'ruby', 'go', 'rust', 'swift'],
+		{
+			provideHover(document, position, token) {
+				// 第一步：先用固定文字測試
+				const line = document.lineAt(position.line);
+				const lineText = line.text.trim();
+
+				// 只在有程式碼內容的行才顯示
+				if (lineText && !lineText.startsWith('//') && !lineText.startsWith('/*')) {
+					const hoverMessage = new vscode.MarkdownString();
+					hoverMessage.appendCodeblock(`🔄 Pseudocode (測試階段)
+Line ${position.line + 1}: ${lineText}
+→ 這裡將顯示對應的 pseudocode`, 'text');
+
+					return new vscode.Hover(hoverMessage);
+				}
+
+				return null;
+			}
+		}
+	);
+
+	context.subscriptions.push(disposable, onSaveDisposable, hoverProvider);
 }
 
 /**
