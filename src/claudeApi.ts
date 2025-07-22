@@ -1,14 +1,18 @@
-require('dotenv').config();
-const axios = require('axios');
+import axios from 'axios';
 
 /**
  * 呼叫 Claude API，將程式碼轉換為 pseudocode
- * @param {string} code - 原始程式碼
- * @returns {Promise<string>} - pseudocode
+ * @param code - 原始程式碼
+ * @returns pseudocode
  */
-async function codeToPseudocode(code) {
+export async function codeToPseudocode(code: string): Promise<string> {
     const apiKey = process.env.CLAUDE_API_KEY;
-    if (!apiKey) throw new Error('找不到 CLAUDE_API_KEY，請檢查 .env 檔案');
+    console.log('在 claudeApi.ts 中檢查 API Key:', !!apiKey);
+    console.log('所有環境變數:', Object.keys(process.env).filter(key => key.includes('CLAUDE')));
+
+    if (!apiKey) {
+        throw new Error('找不到 CLAUDE_API_KEY，請檢查 .env 檔案。當前環境變數中沒有此 Key。');
+    }
 
     // 使用新版 Messages API
     const endpoint = 'https://api.anthropic.com/v1/messages';
@@ -37,7 +41,7 @@ async function codeToPseudocode(code) {
         );
 
         return response.data.content[0].text;
-    } catch (err) {
+    } catch (err: any) {
         if (err.response) {
             // API 回傳的錯誤
             console.error('API 錯誤詳情:', err.response.data);
@@ -47,6 +51,4 @@ async function codeToPseudocode(code) {
             throw new Error('Claude API 請求失敗: ' + err.message);
         }
     }
-}
-
-module.exports = { codeToPseudocode }; 
+} 
