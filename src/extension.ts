@@ -46,22 +46,46 @@ export function activate(context: vscode.ExtensionContext) {
 	const hoverProvider = vscode.languages.registerHoverProvider(
 		['javascript', 'typescript', 'python', 'java', 'cpp', 'c', 'csharp', 'php', 'ruby', 'go', 'rust', 'swift'],
 		{
-			provideHover(document, position, token) {
-				// 第一步：先用固定文字測試
+			async provideHover(document, position, token) {
+				// 獲取當前行內容
 				const line = document.lineAt(position.line);
 				const lineText = line.text.trim();
 
-				// 只在有程式碼內容的行才顯示
-				if (lineText && !lineText.startsWith('//') && !lineText.startsWith('/*')) {
-					const hoverMessage = new vscode.MarkdownString();
-					hoverMessage.appendCodeblock(`🔄 Pseudocode (測試階段)
-Line ${position.line + 1}: ${lineText}
-→ 這裡將顯示對應的 pseudocode`, 'text');
-
-					return new vscode.Hover(hoverMessage);
+				// 只在有程式碼內容的行才顯示（跳過註解和空行）
+				if (!lineText || lineText.startsWith('//') || lineText.startsWith('/*') || lineText.startsWith('#')) {
+					return null;
 				}
 
-				return null;
+				// 檢查 API Key
+				const apiKey = process.env.CLAUDE_API_KEY;
+				if (!apiKey) {
+					const errorMessage = new vscode.MarkdownString();
+					errorMessage.appendCodeblock('❌ 找不到 CLAUDE_API_KEY', 'text');
+					return new vscode.Hover(errorMessage);
+				}
+
+				try {
+					// 呼叫 API 轉換當前行
+					const pseudocode = await codeToPseudocode(lineText);
+
+					// 顯示結果
+					const resultMessage = new vscode.MarkdownString();
+					resultMessage.appendCodeblock(`📝 Pseudocode
+Line ${position.line + 1}: ${lineText}
+
+${pseudocode}`, 'text');
+
+					return new vscode.Hover(resultMessage);
+
+				} catch (error) {
+					// 錯誤處理
+					const errorMessage = new vscode.MarkdownString();
+					errorMessage.appendCodeblock(`❌ 轉換失敗
+Line ${position.line + 1}: ${lineText}
+錯誤: ${(error as Error).message}`, 'text');
+
+					return new vscode.Hover(errorMessage);
+				}
 			}
 		}
 	);
