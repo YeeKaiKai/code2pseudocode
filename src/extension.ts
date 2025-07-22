@@ -8,6 +8,9 @@ import * as path from 'path';
 // 全域變數來追踪面板狀態
 let pseudocodePanel: vscode.WebviewPanel | undefined;
 
+// 快取管理 - 存儲程式碼行與 pseudocode 的對應
+const pseudocodeCache = new Map<string, string>();
+
 export function activate(context: vscode.ExtensionContext) {
 	// 載入 .env 文件 - 使用 extension 根目錄的路徑
 	const extensionPath = context.extensionPath;
@@ -29,12 +32,11 @@ export function activate(context: vscode.ExtensionContext) {
 			return;
 		}
 
-		// 檢查是否為程式碼檔案（基於副檔名）
-		const codeExtensions = ['.js', '.ts', '.py', '.java', '.cpp', '.c', '.cs', '.php', '.rb', '.go', '.rust', '.swift'];
+		// 檢查是否為 Python 檔案
 		const fileExtension = document.fileName.toLowerCase();
-		const isCodeFile = codeExtensions.some(ext => fileExtension.endsWith(ext));
+		const isPythonFile = fileExtension.endsWith('.py');
 
-		if (isCodeFile) {
+		if (isPythonFile) {
 			// 等待一小段時間確保檔案已完全儲存
 			setTimeout(async () => {
 				await convertToPseudocode(true); // 傳入 true 表示是自動更新
@@ -42,17 +44,23 @@ export function activate(context: vscode.ExtensionContext) {
 		}
 	});
 
+	// 註冊檔案變更事件監聽器 - 清理快取
+	const onChangeDisposable = vscode.workspace.onDidChangeTextDocument((event) => {
+		// 檔案內容變更時清理快取，確保使用最新的程式碼
+		pseudocodeCache.clear();
+	});
+
 	// 註冊 Hover Provider
 	const hoverProvider = vscode.languages.registerHoverProvider(
-		['javascript', 'typescript', 'python', 'java', 'cpp', 'c', 'csharp', 'php', 'ruby', 'go', 'rust', 'swift'],
+		['python'],
 		{
 			async provideHover(document, position, token) {
 				// 獲取當前行內容
 				const line = document.lineAt(position.line);
 				const lineText = line.text.trim();
 
-				// 只在有程式碼內容的行才顯示（跳過註解和空行）
-				if (!lineText || lineText.startsWith('//') || lineText.startsWith('/*') || lineText.startsWith('#')) {
+				// 只在有程式碼內容的行才顯示（跳過 Python 註解和空行）
+				if (!lineText || lineText.startsWith('#')) {
 					return null;
 				}
 
@@ -64,9 +72,29 @@ export function activate(context: vscode.ExtensionContext) {
 					return new vscode.Hover(errorMessage);
 				}
 
+				// 使用程式碼內容作為快取鍵
+				const cacheKey = lineText;
+
+				// 檢查快取
+				if (pseudocodeCache.has(cacheKey)) {
+					const cachedPseudocode = pseudocodeCache.get(cacheKey)!;
+
+					// 顯示快取結果
+					const resultMessage = new vscode.MarkdownString();
+					resultMessage.appendCodeblock(`📝 Pseudocode (快取)
+Line ${position.line + 1}: ${lineText}
+
+${cachedPseudocode}`, 'text');
+
+					return new vscode.Hover(resultMessage);
+				}
+
 				try {
 					// 呼叫 API 轉換當前行
 					const pseudocode = await codeToPseudocode(lineText);
+
+					// 存入快取
+					pseudocodeCache.set(cacheKey, pseudocode);
 
 					// 顯示結果
 					const resultMessage = new vscode.MarkdownString();
@@ -90,7 +118,7 @@ Line ${position.line + 1}: ${lineText}
 		}
 	);
 
-	context.subscriptions.push(disposable, onSaveDisposable, hoverProvider);
+	context.subscriptions.push(disposable, onSaveDisposable, onChangeDisposable, hoverProvider);
 }
 
 /**
