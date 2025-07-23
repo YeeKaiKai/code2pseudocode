@@ -10,7 +10,7 @@
     "Other"
   ],
   "activationEvents": [
-    "onCommand:code2pseudocode.convertToPseudocode"
+    "onLanguage:python"
   ],
   "main": "./dist/extension.js",
   "contributes": {
