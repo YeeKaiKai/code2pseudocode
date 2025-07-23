@@ -46,8 +46,18 @@ export function activate(context: vscode.ExtensionContext) {
 
 	// 註冊檔案變更事件監聽器 - 清理快取
 	const onChangeDisposable = vscode.workspace.onDidChangeTextDocument((event) => {
-		// 檔案內容變更時清理快取，確保使用最新的程式碼
-		pseudocodeCache.clear();
+		// 只有在真正有內容變更時才清理快取
+		// 檢查是否有實際的內容變更（排除格式化、自動儲存等）
+		if (event.contentChanges.length > 0) {
+			const hasRealChanges = event.contentChanges.some(change => {
+				// 排除純粹的空白字元變更（如自動格式化）
+				return change.text.trim() !== '' || change.rangeLength > 0;
+			});
+
+			if (hasRealChanges) {
+				pseudocodeCache.clear();
+			}
+		}
 	});
 
 	// 註冊 Hover Provider
