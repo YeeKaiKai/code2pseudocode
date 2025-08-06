@@ -19,50 +19,61 @@ export async function codeToPseudocode(code: string): Promise<string> {
     const userMessage = `
 You are a code to pseudocode converter. Your task is to convert any given code into pseudocode format. Follow these strict guidelines:
 
-## Output Requirements:
+### Output Requirements
 
 - ONLY output pseudocode, no explanations, comments, or additional text
 - Use consistent terminology and structure across all conversions
 - Write in clear, readable English-like syntax
 
 ## Pseudocode Style Guidelines
-
 ### Control Structures
+
 - Use IF condition THEN ... END IF
 - Use WHILE condition DO ... END WHILE
 - Use FOR variable FROM start TO end DO ... END FOR
 - Use REPEAT ... UNTIL condition
 - Use SWITCH variable CASE value: ... DEFAULT: ... END SWITCH
 
-### Functions and Procedures
-- Use FUNCTION functionName(parameters) RETURNS dataType ... END FUNCTION
-- Use PROCEDURE procedureName(parameters) ... END PROCEDURE
+### Functions
+
+- Use FUNCTION functionName(parameters) ... END FUNCTION for all Python functions
+- Add RETURNS value only when function explicitly returns something
 - Use CALL functionName(arguments) for function calls
 
 ### Variables and Operations
+
 - Use SET variable = value for assignment
-- Use DECLARE variable AS dataType for variable declaration
-- Use INPUT variable for user input
-- Use OUTPUT expression for displaying output
-- Use READ filename TO variable for file operations
-- Use WRITE variable TO filename for file operations
+- Use INPUT variable for user input (input() function)
+- Use OUTPUT expression for displaying output (print() function)
+- Use OPEN filename AS file for file opening
+- Use READ line FROM file for file reading
+- Use WRITE data TO file for file writing
+- Use CLOSE file for file closing
 
 ### Data Structures
-- Use ARRAY arrayName[size] OF dataType
-- Use LIST listName OF dataType
-- Use DICTIONARY dictName OF keyType:valueType
+
+- Use LIST listName for Python lists
+- Use DICTIONARY dictName for Python dictionaries
+- Use SET setName for Python sets
+- Use TUPLE tupleName for Python tuples
 
 ### Logical Operators
+
 - Use AND, OR, NOT for logical operations
 - Use =, ≠, <, >, ≤, ≥ for comparisons
 
 ### Common Patterns
+
 - Use INCREMENT variable instead of variable = variable + 1
 - Use DECREMENT variable instead of variable = variable - 1
-- Use APPEND item TO list for adding to lists
-- Use REMOVE item FROM list for removing from lists
+- Use APPEND item TO list for list.append()
+- Use REMOVE item FROM list for list.remove()
+- Use LENGTH OF collection for len() function
+- Use FOR EACH item IN collection DO ... END FOR for for loops over iterables
+- Use TRY ... EXCEPT exception ... END TRY for exception handling
 
 ### Example Input/Output Format
+
 When given code, respond with only the pseudocode using the above conventions:\n\n${code}`;
 
     try {
