@@ -2,13 +2,14 @@
 // Import the module and reference it with the alias vscode in your code below
 import * as vscode from 'vscode';
 import { codeToPseudocode } from './claudeApi';
+import { PythonCodeBlockParser, CodeBlock, CodeBlockType } from './codeBlockParser';
 import * as dotenv from 'dotenv';
 import * as path from 'path';
 
 // 全域變數來追踪面板狀態
 let pseudocodePanel: vscode.WebviewPanel | undefined;
 
-// 快取管理 - 存儲程式碼行與 pseudocode 的對應
+// 快取管理 - 存儲程式碼區塊與 pseudocode 的對應
 const pseudocodeCache = new Map<string, string>();
 
 export function activate(context: vscode.ExtensionContext) {
@@ -65,7 +66,7 @@ export function activate(context: vscode.ExtensionContext) {
 		['python'],
 		{
 			async provideHover(document, position, token) {
-				// 獲取當前行內容
+				// 獲取當前行內容，用於初步檢查
 				const line = document.lineAt(position.line);
 				const lineText = line.text.trim();
 
@@ -82,8 +83,27 @@ export function activate(context: vscode.ExtensionContext) {
 					return new vscode.Hover(errorMessage);
 				}
 
-				// 使用程式碼內容作為快取鍵
-				const cacheKey = lineText;
+				// 判斷當前行是否為區塊開始行
+				const isBlockStartLine = isBlockStart(lineText);
+
+				let codeBlock: CodeBlock;
+				let cacheKey: string;
+
+				if (isBlockStartLine) {
+					// 如果是區塊開始行，使用區塊識別
+					codeBlock = PythonCodeBlockParser.findCodeBlock(document, position);
+					cacheKey = codeBlock.code.trim();
+				} else {
+					// 否則只處理單行
+					codeBlock = {
+						type: CodeBlockType.SINGLE_LINE,
+						startLine: position.line,
+						endLine: position.line,
+						code: lineText,
+						indentLevel: 0
+					};
+					cacheKey = lineText;
+				}
 
 				// 檢查快取
 				if (pseudocodeCache.has(cacheKey)) {
@@ -92,7 +112,7 @@ export function activate(context: vscode.ExtensionContext) {
 					// 顯示快取結果
 					const resultMessage = new vscode.MarkdownString();
 					resultMessage.appendCodeblock(`📝 Pseudocode (快取)
-Line ${position.line + 1}: ${lineText}
+${getBlockTypeDisplay(codeBlock.type)} (Lines ${codeBlock.startLine + 1}-${codeBlock.endLine + 1})
 
 ${cachedPseudocode}`, 'text');
 
@@ -100,8 +120,8 @@ ${cachedPseudocode}`, 'text');
 				}
 
 				try {
-					// 呼叫 API 轉換當前行
-					const pseudocode = await codeToPseudocode(lineText);
+					// 呼叫 API 轉換程式碼區塊
+					const pseudocode = await codeToPseudocode(codeBlock.code);
 
 					// 存入快取
 					pseudocodeCache.set(cacheKey, pseudocode);
@@ -109,7 +129,7 @@ ${cachedPseudocode}`, 'text');
 					// 顯示結果
 					const resultMessage = new vscode.MarkdownString();
 					resultMessage.appendCodeblock(`📝 Pseudocode
-Line ${position.line + 1}: ${lineText}
+${getBlockTypeDisplay(codeBlock.type)} (Lines ${codeBlock.startLine + 1}-${codeBlock.endLine + 1})
 
 ${pseudocode}`, 'text');
 
@@ -119,7 +139,7 @@ ${pseudocode}`, 'text');
 					// 錯誤處理
 					const errorMessage = new vscode.MarkdownString();
 					errorMessage.appendCodeblock(`❌ 轉換失敗
-Line ${position.line + 1}: ${lineText}
+${getBlockTypeDisplay(codeBlock.type)} (Lines ${codeBlock.startLine + 1}-${codeBlock.endLine + 1})
 錯誤: ${(error as Error).message}`, 'text');
 
 					return new vscode.Hover(errorMessage);
@@ -129,6 +149,56 @@ Line ${position.line + 1}: ${lineText}
 	);
 
 	context.subscriptions.push(disposable, onSaveDisposable, onChangeDisposable, hoverProvider);
+}
+
+/**
+ * 判斷當前行是否為程式碼區塊開始行
+ */
+function isBlockStart(lineText: string): boolean {
+	const trimmed = lineText.trim();
+
+	// 檢查是否以冒號結尾
+	if (!trimmed.endsWith(':')) {
+		return false;
+	}
+
+	// 檢查是否包含區塊關鍵字
+	return trimmed.startsWith('def ') ||
+		trimmed.startsWith('class ') ||
+		trimmed.startsWith('if ') ||
+		trimmed.startsWith('elif ') ||
+		trimmed === 'else:' ||
+		trimmed.startsWith('for ') ||
+		trimmed.startsWith('while ') ||
+		trimmed === 'try:' ||
+		trimmed.startsWith('except') ||
+		trimmed === 'finally:' ||
+		trimmed.startsWith('with ') ||
+		trimmed.startsWith('match ');
+}
+
+/**
+ * 取得區塊類型的顯示名稱
+ */
+function getBlockTypeDisplay(type: CodeBlockType): string {
+	switch (type) {
+		case CodeBlockType.FUNCTION:
+			return '🔧 Function';
+		case CodeBlockType.CLASS:
+			return '🏗️ Class';
+		case CodeBlockType.IF:
+			return '🔀 If Statement';
+		case CodeBlockType.FOR:
+			return '🔄 For Loop';
+		case CodeBlockType.WHILE:
+			return '🔁 While Loop';
+		case CodeBlockType.TRY:
+			return '🛡️ Try Block';
+		case CodeBlockType.SINGLE_LINE:
+			return '📝 Single Line';
+		default:
+			return '📋 Code Block';
+	}
 }
 
 /**
